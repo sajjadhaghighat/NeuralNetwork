@@ -27,14 +27,13 @@ class MLP(object):
          self.wi_new = self.wi
 
      def train(self , epoches=1):
-
          for epoch in range(epoches):
              for row in self.dataset:
                 Y = row[0]
                 X = np.append(row[1:] / 255, 1)
                 network , expected = self.feedforward(X, Y)
-                self.backpropagation(network, expected)
-                exit()
+                self.backpropagation(X, network, expected)
+         print(self.wi)
 
      def feedforward(self, X, Y):
          # Convert To 2D Array for compute Transpose
@@ -54,14 +53,30 @@ class MLP(object):
          return self.oi[-1] , Y
 
 
-     def backpropagation(self , network , expected):
-         print(self.neti[-1])
-         exit()
+     def backpropagation(self ,X, network , expected):
          for i in range(len(self.layers_size)-2,-1,-1):
              if i == len(self.layers_size)-2:
                  # last layer
-                 self.delta[i] = -2*(expected - network) * self.der_func(self.neti[i])
+                 delta = -2 * self.der_func(self.neti[i]) * (expected - network)
+                 self.delta[i] = delta
+                 wi = self.wi[i]
+                 for j in range(len(delta)):
+                     RondE = self.oi[i - 1] * delta[j]
+                     wi[j] = wi[j] - self.etha * RondE
+                 self.wi_new[i] = wi
+             else:
+                 #Hidden layers
+                 wi = self.wi[i+1]
+                 di = self.delta[i+1]
+                 delta =  self.der_func(self.neti[i]) * [sum( wi[:,j] * di) for j in range(wi.shape[1] - 1)]
+                 self.delta[i] = delta
+                 wi = self.wi[i]
+                 for j in range(len(delta)):
+                     RondE = self.oi[i - 1] * delta[j] if i > 0 else X * delta[j]
+                     wi[j] = wi[j] - self.etha * RondE
+                 self.wi_new[i] = wi
 
+         self.wi = self.wi_new
 
      def squared_error(self, o, d):
          tmp = np.zeros(10)
@@ -71,9 +86,7 @@ class MLP(object):
          return d
 
      def mse(self):
-         print(self.mean_squared_error.shape)
-         print(self.mean_squared_error)
-         print(self.mean_squared_error.mean())
+         print("MSE : ",self.mean_squared_error.mean())
 
      def sigmoid(self, z):
          result = 1.0 / (1.0 + np.exp(-z))
@@ -109,6 +122,8 @@ class MLP(object):
          ce = -np.sum(targets * np.log(predictions + 1e-9))
          return ce
 
+     #def print_norm(self):
+
 if __name__ == '__main__':
     X = pd.read_csv("mnist_train.csv")
     print(X.head(2))
@@ -116,8 +131,9 @@ if __name__ == '__main__':
 
     mlp = MLP(
         X,
-        [784, 50, 32, 10],
-        "sigmoid"
+        [784, 32, 16, 10],
+        "relu"
     )
-    mlp.train(2)
+    print("Training..........................")
+    mlp.train()
     mlp.mse()
