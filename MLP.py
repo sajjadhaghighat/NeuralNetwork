@@ -3,7 +3,7 @@
 
 import numpy as np
 import pandas as pd
-
+import matplotlib.pyplot as plt
 
 class MLP(object):
      def __init__(self, data, layers_size , act_func , etha = 0.1  , rand_scale = 0.1):
@@ -22,9 +22,9 @@ class MLP(object):
      def create_weights(self):
          nl = self.layers_size
          self.wi = [None] * (len(nl) - 1)
+         self.wi_new = [None] * (len(nl) - 1)
          for i in range(len(self.wi)):
              self.wi[i] = np.random.normal(0, self.rand_scale, (nl[i+1], nl[i]+1))
-         self.wi_new = self.wi
 
      def train(self , epoches=1):
          for epoch in range(epoches):
@@ -34,6 +34,7 @@ class MLP(object):
                 network , expected = self.feedforward(X, Y)
                 self.backpropagation(X, network, expected)
          print(self.wi)
+         plt.show()
 
      def feedforward(self, X, Y):
          # Convert To 2D Array for compute Transpose
@@ -52,14 +53,13 @@ class MLP(object):
          Y = self.squared_error(self.oi[-1],Y)
          return self.oi[-1] , Y
 
-
      def backpropagation(self ,X, network , expected):
          for i in range(len(self.layers_size)-2,-1,-1):
              if i == len(self.layers_size)-2:
                  # last layer
                  delta = -2 * self.der_func(self.neti[i]) * (expected - network)
                  self.delta[i] = delta
-                 wi = self.wi[i]
+                 wi = self.wi[i].copy()
                  for j in range(len(delta)):
                      RondE = self.oi[i - 1] * delta[j]
                      wi[j] = wi[j] - self.etha * RondE
@@ -70,13 +70,14 @@ class MLP(object):
                  di = self.delta[i+1]
                  delta =  self.der_func(self.neti[i]) * [sum( wi[:,j] * di) for j in range(wi.shape[1] - 1)]
                  self.delta[i] = delta
-                 wi = self.wi[i]
+                 wi = self.wi[i].copy()
                  for j in range(len(delta)):
                      RondE = self.oi[i - 1] * delta[j] if i > 0 else X * delta[j]
                      wi[j] = wi[j] - self.etha * RondE
                  self.wi_new[i] = wi
+         self.print_norm()
+         self.wi = self.wi_new.copy()
 
-         self.wi = self.wi_new
 
      def squared_error(self, o, d):
          tmp = np.zeros(10)
@@ -93,7 +94,6 @@ class MLP(object):
          return result
 
      def relu(self, z):
-
          if np.isscalar(z):
              result = np.max((z, 0))
          else:
@@ -103,12 +103,10 @@ class MLP(object):
          return result
 
      def sigmoid_derivative(self, z):
-
          result = self.sigmoid(z) * (1 - self.sigmoid(z))
          return result
 
      def relu_derivative(self, z):
-
          result = 1 * (z > 0)
          return result
 
@@ -122,7 +120,12 @@ class MLP(object):
          ce = -np.sum(targets * np.log(predictions + 1e-9))
          return ce
 
-     #def print_norm(self):
+     def print_norm(self):
+        st = len(self.layers_size) -1
+        plt.ylim(0., .5)
+        plt.plot([i for i in range(st)], [np.sqrt(np.square(self.wi[j]-self.wi_new[j]).sum()) for j in range(st)])
+        plt.ylabel("Norm of Weight Matrix")
+
 
 if __name__ == '__main__':
     X = pd.read_csv("mnist_train.csv")
@@ -131,9 +134,10 @@ if __name__ == '__main__':
 
     mlp = MLP(
         X,
-        [784, 32, 16, 10],
-        "relu"
+        [784, 1000, 100, 10],
+        "sigmoid"
     )
     print("Training..........................")
     mlp.train()
     mlp.mse()
+
