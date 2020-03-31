@@ -4,6 +4,8 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import time
+from sklearn.metrics import accuracy_score
 
 class MLP(object):
      def __init__(self, data, layers_size , act_func , etha = 0.1  , rand_scale = 0.1):
@@ -17,6 +19,8 @@ class MLP(object):
         self.act_func = self.sigmoid if act_func=="sigmoid" else self.relu
         self.der_func = self.sigmoid_derivative if act_func == "sigmoid" else self.relu_derivative
         self.mean_squared_error = []
+        self.target = []
+        self.pred = []
         self.create_weights()
 
      def create_weights(self):
@@ -27,6 +31,9 @@ class MLP(object):
              self.wi[i] = np.random.normal(0, self.rand_scale, (nl[i+1], nl[i]+1))
 
      def train(self , epoches=1):
+         self.mean_squared_error = []
+         self.target = []
+         self.pred = []
          for epoch in range(epoches):
              for row in self.dataset:
                 Y = row[0]
@@ -35,6 +42,15 @@ class MLP(object):
                 self.backpropagation(X, network, expected)
          print(self.wi)
          plt.show()
+
+     def test(self, test):
+         self.mean_squared_error = []
+         self.target = []
+         self.pred = []
+         for row in test:
+             Y = row[0]
+             X = np.append(row[1:] / 255, 1)
+             self.feedforward(X, Y)
 
      def feedforward(self, X, Y):
          # Convert To 2D Array for compute Transpose
@@ -83,11 +99,27 @@ class MLP(object):
          tmp = np.zeros(10)
          tmp[d] = 1
          d = tmp
+         o[o>0.5] = 1
+         o[o<0.5] = 0
          self.mean_squared_error = np.append(self.mean_squared_error,((d - o) ** 2).mean())
+         self.pre_accuracy(o,d)
          return d
 
      def mse(self):
          print("MSE : ",self.mean_squared_error.mean())
+
+     def pre_accuracy(self,o,d):
+         if np.all(d == o):
+           self.target = np.append(self.target,1)
+           self.pred = np.append(self.pred, 1)
+         else:
+           self.target = np.append(self.target, 1)
+           self.pred = np.append(self.pred, 0)
+
+     def accuracy(self):
+         print(self.target)
+         print(self.pred)
+         print("Accuracy : ", accuracy_score(self.target,self.pred) * 100)
 
      def sigmoid(self, z):
          result = 1.0 / (1.0 + np.exp(-z))
@@ -128,16 +160,26 @@ class MLP(object):
 
 
 if __name__ == '__main__':
+    start = time.time()
     X = pd.read_csv("mnist_train.csv")
     print(X.head(2))
     X = X.to_numpy()
 
     mlp = MLP(
         X,
-        [784, 1000, 100, 10],
+        [784, 32, 16, 10],
         "sigmoid"
     )
     print("Training..........................")
-    mlp.train()
+    mlp.train(2)
     mlp.mse()
-
+    mlp.accuracy()
+    print("Testing...........................")
+    X = pd.read_csv("mnist_test.csv")
+    print(X.head(2))
+    X = X.to_numpy()
+    mlp.test(X)
+    mlp.mse()
+    mlp.accuracy()
+    end = time.time()
+    print("Execute Time : ", end - start)
