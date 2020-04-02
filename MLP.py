@@ -1,14 +1,15 @@
 # In the name of God
 # Sajjad Haghighat
-
+from sklearn.decomposition import PCA
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
 from sklearn.metrics import accuracy_score
+import statistics
 
 class MLP(object):
-     def __init__(self, data, layers_size , act_func , etha = 0.1  , rand_scale = 0.1):
+     def __init__(self, data, layers_size , act_func , etha = 0.1, rand_scale = 0.1):
         self.dataset = data
         self.layers_size = layers_size
         self.etha = etha
@@ -22,7 +23,15 @@ class MLP(object):
         self.target = []
         self.pred = []
         self.acclist = []
+        #self.create_xavier_weights()
         self.create_weights()
+
+     def create_xavier_weights(self):
+         nl = self.layers_size
+         self.wi = [None] * (len(nl) - 1)
+         self.wi_new = [None] * (len(nl) - 1)
+         for i in range(len(self.wi)):
+             self.wi[i] = np.random.randn(nl[i+1], nl[i]+1) / np.sqrt(nl[i])
 
      def create_weights(self):
          nl = self.layers_size
@@ -39,10 +48,9 @@ class MLP(object):
          for epoch in range(epoches):
              for row in self.dataset:
                 Y = row[0]
-                X = np.append(row[1:] / 255, 1)
+                X = np.append((row[1:] - row[1:].mean()) / statistics.stdev(row[1:]), 1)
                 network , expected = self.feedforward(X, Y)
                 self.backpropagation(X, network, expected)
-         print(self.wi)
          plt.show()
 
      def test(self, test):
@@ -52,17 +60,17 @@ class MLP(object):
          self.acclist = []
          for row in test:
              Y = row[0]
-             X = np.append(row[1:] / 255, 1)
+             X = np.append((row[1:] - row[1:].mean()) / statistics.stdev(row[1:]), 1)
              self.feedforward(X, Y)
 
      def feedforward(self, X, Y):
-         # Convert To 2D Array for compute Transpose
          X = np.array(X , ndmin=2)
          nl = len(self.layers_size)
          for i in range(nl-1):
             net = np.dot(self.wi[i], X.T)
             self.neti[i] = net[:, 0]
             if i == nl-2:
+                #tmp = self.act_func(net)
                 tmp = self.softmax(net)
                 self.oi[i] = tmp[:, 0]
             else:
@@ -70,7 +78,7 @@ class MLP(object):
                 self.oi[i] = np.append(tmp, 1)#bias
                 X = np.array(self.oi[i], ndmin=2)
 
-         #Y = self.squared_error(self.oi[-1],Y)
+         #Y = self.squared_error(self.oi[-1].copy(),Y)
          Y = self.pre_celoss(self.oi[-1].copy(), Y)
          return self.oi[-1], Y
 
@@ -112,7 +120,7 @@ class MLP(object):
          return target
 
      def mse(self):
-         print("MSE : ",self.error.mean())
+         print("MSE : ", self.error.mean())
 
      def pre_accuracy(self,o,d):
          if np.all(d == o):
@@ -133,7 +141,7 @@ class MLP(object):
 
      def pre_celoss(self, o, d):
          target = np.zeros(10)
-         target[d] = 1
+         target[int(d)] = 1
          predict = o.copy()
          o[o == np.amax(o)] = 1
          o[o != 1] = 0
@@ -190,13 +198,28 @@ if __name__ == '__main__':
 
     mlp = MLP(
         X,
-        [784, 32, 16, 10],
+        [784, 100, 50, 10],
         "sigmoid"
     )
     print("Training..........................")
     mlp.train()
     mlp.celoss()
     mlp.accuracy('train')
+    """print("PCA Training..........................")
+    y = X[:, 0]
+    pca = PCA(n_components=200)
+    X_reduced = pca.fit_transform(X[:, 1:])
+    X = np.zeros((X_reduced.shape[0], X_reduced.shape[1] + 1))
+    X[:, 0] = y
+    X[:, 1:] = X_reduced
+    mlp2 = MLP(
+        X,
+        [200, 100, 50, 10],
+        "sigmoid"
+    )
+    mlp2.train()
+    mlp2.celoss()
+    mlp2.accuracy('PCA train')"""
     print("Testing...........................")
     X = pd.read_csv("mnist_test.csv")
     X = X.to_numpy()
@@ -205,3 +228,4 @@ if __name__ == '__main__':
     mlp.accuracy('test')
     end = time.time()
     print("Execute Time : ", end - start)
+    print("")
