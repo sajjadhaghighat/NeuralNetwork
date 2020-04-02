@@ -18,9 +18,10 @@ class MLP(object):
         self.delta = [None] * (len(layers_size) - 1)
         self.act_func = self.sigmoid if act_func=="sigmoid" else self.relu
         self.der_func = self.sigmoid_derivative if act_func == "sigmoid" else self.relu_derivative
-        self.mean_squared_error = []
+        self.error = []
         self.target = []
         self.pred = []
+        self.acclist = []
         self.create_weights()
 
      def create_weights(self):
@@ -31,9 +32,10 @@ class MLP(object):
              self.wi[i] = np.random.normal(0, self.rand_scale, (nl[i+1], nl[i]+1))
 
      def train(self , epoches=1):
-         self.mean_squared_error = []
+         self.error = []
          self.target = []
          self.pred = []
+         self.acclist = []
          for epoch in range(epoches):
              for row in self.dataset:
                 Y = row[0]
@@ -44,9 +46,10 @@ class MLP(object):
          plt.show()
 
      def test(self, test):
-         self.mean_squared_error = []
+         self.error = []
          self.target = []
          self.pred = []
+         self.acclist = []
          for row in test:
              Y = row[0]
              X = np.append(row[1:] / 255, 1)
@@ -59,21 +62,24 @@ class MLP(object):
          for i in range(nl-1):
             net = np.dot(self.wi[i], X.T)
             self.neti[i] = net[:, 0]
-            tmp = self.act_func(net)
             if i == nl-2:
+                tmp = self.softmax(net)
                 self.oi[i] = tmp[:, 0]
             else:
+                tmp = self.act_func(net)
                 self.oi[i] = np.append(tmp, 1)#bias
                 X = np.array(self.oi[i], ndmin=2)
 
-         Y = self.squared_error(self.oi[-1],Y)
-         return self.oi[-1] , Y
+         #Y = self.squared_error(self.oi[-1],Y)
+         Y = self.pre_celoss(self.oi[-1].copy(), Y)
+         return self.oi[-1], Y
 
      def backpropagation(self ,X, network , expected):
          for i in range(len(self.layers_size)-2,-1,-1):
              if i == len(self.layers_size)-2:
                  # last layer
-                 delta = -2 * self.der_func(self.neti[i]) * (expected - network)
+                 #delta = -2 * self.der_func(self.neti[i]) * (expected - network)
+                 delta =  (network - expected)
                  self.delta[i] = delta
                  wi = self.wi[i].copy()
                  for j in range(len(delta)):
@@ -96,17 +102,17 @@ class MLP(object):
 
 
      def squared_error(self, o, d):
-         tmp = np.zeros(10)
-         tmp[d] = 1
-         d = tmp
-         o[o>0.5] = 1
-         o[o<0.5] = 0
-         self.mean_squared_error = np.append(self.mean_squared_error,((d - o) ** 2).mean())
-         self.pre_accuracy(o,d)
-         return d
+         target = np.zeros(10)
+         target[d] = 1
+         predict = o.copy()
+         o[o == np.amax(o)] = 1
+         o[o != 1] = 0
+         self.error = np.append(self.error,((target - predict) ** 2).sum())
+         self.pre_accuracy(o, target)
+         return target
 
      def mse(self):
-         print("MSE : ",self.mean_squared_error.mean())
+         print("MSE : ",self.error.mean())
 
      def pre_accuracy(self,o,d):
          if np.all(d == o):
@@ -116,10 +122,28 @@ class MLP(object):
            self.target = np.append(self.target, 1)
            self.pred = np.append(self.pred, 0)
 
-     def accuracy(self):
-         print(self.target)
-         print(self.pred)
+         self.acclist = np.append(self.acclist , accuracy_score(self.target,self.pred) * 100)
+
+     def accuracy(self , leg):
          print("Accuracy : ", accuracy_score(self.target,self.pred) * 100)
+         plt.title(leg + ' Accuracy')
+         plt.ylim(0.0, 100.0)
+         plt.plot([i for i in range(len(self.acclist))], self.acclist)
+         plt.show()
+
+     def pre_celoss(self, o, d):
+         target = np.zeros(10)
+         target[d] = 1
+         predict = o.copy()
+         o[o == np.amax(o)] = 1
+         o[o != 1] = 0
+         self.error = np.append(self.error, self.cross_entropy(predict,target))
+         self.pre_accuracy(o, target)
+         return target
+
+     def celoss(self):
+         print("CE_Loss : ", self.error.mean())
+
 
      def sigmoid(self, z):
          result = 1.0 / (1.0 + np.exp(-z))
@@ -142,11 +166,11 @@ class MLP(object):
          result = 1 * (z > 0)
          return result
 
-     def softmax(x):
+     def softmax(self, x):
          e_x = np.exp(x - np.max(x))
          return e_x / e_x.sum(axis=0)
 
-     def cross_entropy(predictions, targets, epsilon=1e-12):
+     def cross_entropy(self, predictions, targets, epsilon=1e-12):
          predictions = np.clip(predictions, epsilon, 1. - epsilon)
          N = predictions.shape[0]
          ce = -np.sum(targets * np.log(predictions + 1e-9))
@@ -162,7 +186,6 @@ class MLP(object):
 if __name__ == '__main__':
     start = time.time()
     X = pd.read_csv("mnist_train.csv")
-    print(X.head(2))
     X = X.to_numpy()
 
     mlp = MLP(
@@ -171,15 +194,14 @@ if __name__ == '__main__':
         "sigmoid"
     )
     print("Training..........................")
-    mlp.train(2)
-    mlp.mse()
-    mlp.accuracy()
+    mlp.train()
+    mlp.celoss()
+    mlp.accuracy('train')
     print("Testing...........................")
     X = pd.read_csv("mnist_test.csv")
-    print(X.head(2))
     X = X.to_numpy()
     mlp.test(X)
-    mlp.mse()
-    mlp.accuracy()
+    mlp.celoss()
+    mlp.accuracy('test')
     end = time.time()
     print("Execute Time : ", end - start)
